@@ -1,48 +1,71 @@
-import numpy as np
 import serial
 import struct
 import time
+import math
 
 # --- CONFIG ---
-PORT = "COM9" # Ensure this matches your MATLAB block!
-BAUD = 115200
-RATE_HZ = 50
-DT = 1 / RATE_HZ
+PORT = "COM9"      # Ensure MATLAB is on COM9
+BAUD = 115200      # Matches your setup
+RATE_HZ = 50       # Sending data 50 times per second
 
-ser = serial.Serial(PORT, BAUD)
+try:
+    ser = serial.Serial(PORT, BAUD)
+    print(f"Connected to {PORT}. Sending 'OORJA' Struct Data...")
+except Exception as e:
+    print(f"Error opening {PORT}: {e}")
+    exit()
+
+# Struct Format based on your ESP32 Code:
+# 11 Floats (f), 1 Uint32 (I), 3 Floats (f), 1 Uint32 (I) = 64 Bytes
+# Little Endian (<)
+STRUCT_FMT = '<fffffffffffIfffI'
+
 start_time = time.time()
-
-# Initial GPS (Patiala/Thapar Region)
-lat, lon = 30.3527, 76.3608 
-
-print(f"LoRa Emulation Active on {PORT}. Sending data...")
+packet_count = 0
 
 try:
     while True:
-        # 1. Generate Fake Physics (Circular Path)
         t = time.time() - start_time
-        speed_m_s = 12.0 + np.sin(t) # Slight speed variation
-        steer_deg = 20.0 * np.sin(t * 0.5) # Steering oscillates
-        yaw_deg = (t * 40) % 360 # Continuous rotation
         
-        # 2. Scale for Binary Packing (Matches your earlier logic)
+        # --- 1. Generate Fake Data ---
+        # GPS (Patiala coordinates)
+        lat = 30.3527 + 0.0001 * math.sin(t * 0.5)
+        lon = 76.3608 + 0.0001 * math.cos(t * 0.5)
+        
+        # Sensors
+        bat_temp = 35.0 + math.sin(t)
+        motor_temp = 45.0 + math.sin(t)
+        speed_kph = 40.0 + 5 * math.sin(t)
+        rpm = 3000 + 500 * math.sin(t)
+        current = 15.0
+        voltage = 48.0
+        dist_right = 1.5
+        dist_left = 1.5
+        steering_angle = 30.0 * math.sin(t) # Steers left and right
+        
         timestamp = int(t * 1000)
-        wheel_rpm = int((speed_m_s / 0.3) * 60 / (2 * np.pi))
-        steer_i = int(steer_deg * 100)
-        yaw_i = int(yaw_deg * 100)
-        ax_i = int(np.random.normal(0, 50)) # Random G-force noise
-        lat_i = int((lat + 0.0001 * np.sin(t*0.1)) * 1e7)
-        lon_i = int((lon + 0.0001 * np.cos(t*0.1)) * 1e7)
-        speed_i = int(speed_m_s * 100)
-
-        # 3. PACKING: <B I h h h h i i H (23 Bytes)
-        # B=Header, I=Time, h=int16, i=int32, H=uint16
-        packet = struct.pack('<B I h h h h i i H', 
-                            0xAA, timestamp, wheel_rpm, steer_i, 
-                            yaw_i, ax_i, lat_i, lon_i, speed_i)
         
-        ser.write(packet)
-        time.sleep(DT)
+        # MPU6050 (IMU)
+        mpu_gx = 0.1
+        mpu_gy = 0.1
+        mpu_gz = 9.8
+        
+        packet_id = packet_count
+
+        # --- 2. Pack into 64 Bytes ---
+        # Must match the order of 'struct OORJA' exactly!
+        data = struct.pack(STRUCT_FMT, 
+                           lat, lon, bat_temp, motor_temp, speed_kph, rpm, 
+                           current, voltage, dist_right, dist_left, steering_angle, 
+                           timestamp, mpu_gx, mpu_gy, mpu_gz, packet_id)
+
+        # --- 3. Send ---
+        ser.write(data)
+        print(f"Sent Packet #{packet_id} | Steer: {steering_angle:.2f} | RPM: {rpm:.2f}")
+        
+        packet_count += 1
+        time.sleep(1.0 / RATE_HZ)
+
 except KeyboardInterrupt:
     ser.close()
-    print("Stopped.")
+    print("\nStopped.")
