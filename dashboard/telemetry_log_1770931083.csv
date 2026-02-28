@@ -1,0 +1,1 @@
+packet_id,lat,lon,voltage,current,bat_temp,motor_temp,speed_kph,rpm,dist_l,dist_r,steering,timestamp,mpu_gx,mpu_gy,mpu_gz

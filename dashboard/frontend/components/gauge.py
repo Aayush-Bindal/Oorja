@@ -23,20 +23,32 @@ class AnalogueGauge(QWidget):
         # Clamp value
         self.current_value = max(self.min_val, min(value, self.max_val))
         self.update()  # Triggers paintEvent
+    def draw_progress_arc(self, painter):
+        start_angle = -225 * 16
+        sweep_angle = -270 * 16  # clockwise
 
+        pct = (self.current_value - self.min_val) / (self.max_val - self.min_val)
+        pct = max(0.0, min(1.0, pct))
+
+        rect = QRectF(-85, -85, 170, 170)
+
+        pen = QPen(self.accent_color, 12)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        painter.drawArc(rect, start_angle, int(sweep_angle * pct))
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # 1. Setup Canvas (Scale to 200x200 logical units)
         w, h = self.width(), self.height()
         painter.translate(w / 2, h / 2)
         side = min(w, h)
-        scale = side / 200.0
-        painter.scale(scale, scale)
+        painter.scale(side / 200, side / 200)
 
-        # 2. Draw Components
         self.draw_face(painter)
+        self.draw_progress_arc(painter)   
         self.draw_ticks_and_labels(painter)
         self.draw_needle(painter)
         self.draw_digital_readout(painter)
@@ -50,57 +62,122 @@ class AnalogueGauge(QWidget):
         painter.setBrush(QBrush(grad))
         painter.setPen(QPen(QColor(60, 60, 65), 2))
         painter.drawEllipse(-95, -95, 190, 190)
-
+        pen = QPen(QColor(0, 220, 255, 60), 6)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(-92, -92, 184, 184)
     def draw_ticks_and_labels(self, painter):
-        # Configuration for the dial arc
-        start_angle = 135  # Bottom Left
-        end_angle = 405    # Bottom Right (wraps past 360)
+        start_angle = 135
+        end_angle = 405
         total_angle = end_angle - start_angle
-        
-        # Determine tick steps based on range size
+
         val_range = self.max_val - self.min_val
-        major_step = val_range / 10 if val_range >= 10 else 1
-        
+
+        # Number of labeled ticks (EXACT numbers only)
+        steps = 10
+        step_value = val_range / steps
+
         painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
 
-        # We iterate through values to draw ticks
-        # Using a fixed number of steps for cleaner loops
-        steps = 10 # 10 Major intervals
         for i in range(steps + 1):
-            # Calculate value for this tick
-            val = self.min_val + (i * (val_range / steps))
-            
-            # Calculate angle (0 to 1)
+            val = self.min_val + i * step_value
             pct = i / steps
-            angle_deg = start_angle + (pct * total_angle)
-            
-            # 1. Draw Ticks (Rotate painter)
+            angle_deg = start_angle + pct * total_angle
+
+            # ---- DRAW TICK ----
             painter.save()
-            painter.rotate(angle_deg + 90) # Offset for standard coord system
-            
-            # Highlight "Redline" ticks (top 20%)
-            is_redline = val > (self.max_val - (val_range * 0.2))
-            tick_color = self.warning_color if is_redline else QColor(150, 150, 150)
-            
+            painter.rotate(angle_deg + 90)
+
+            is_redline = val >= self.max_val * 0.8
+            tick_color = self.warning_color if is_redline else QColor(160, 160, 160)
+
             painter.setPen(QPen(tick_color, 2))
-            painter.drawLine(0, -85, 0, -95) # Draw line inward from rim
+            painter.drawLine(0, -85, 0, -95)
             painter.restore()
 
-            # 2. Draw Text Labels (Trigonometry)
-            # We use trig so text stays upright (doesn't rotate with dial)
+            # ---- DRAW NUMBER (ONLY THESE TICKS EXIST) ----
             angle_rad = math.radians(angle_deg + 90)
-            radius = 70 # Distance from center
+            radius = 70
+
             x = radius * math.cos(angle_rad)
             y = radius * math.sin(angle_rad)
-            
-            painter.setPen(self.text_color)
-            # Create a rectangle centered on calculated point
-            rect = QRectF(x - 15, y - 10, 30, 20)
-            
-            # Format number (int if whole, float if small range)
-            label_text = f"{int(val)}" if val_range >= 10 else f"{val:.1f}"
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label_text)
 
+            painter.setPen(self.text_color)
+            rect = QRectF(x - 15, y - 10, 30, 20)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"{int(val)}")
+            start_angle = -225  
+            sweep_angle = 270
+
+            step = 10
+            steps = int((self.max_val - self.min_val) / step)
+
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+
+            for i in range(steps + 1):
+                val = self.min_val + i * step
+                pct = i / steps
+                angle = start_angle + pct * sweep_angle
+
+                # ---------- TICKS ----------
+                painter.save()
+                painter.rotate(angle)
+
+                is_red = val >= 70
+                tick_color = QColor(255, 60, 60) if is_red else QColor(180, 180, 180)
+
+                painter.setPen(QPen(tick_color, 3))
+                painter.drawLine(0, -82, 0, -95)
+                painter.restore()
+
+                # ---------- LABELS ----------
+                angle_rad = math.radians(angle)
+                radius = 68
+
+                x = radius * math.cos(angle_rad)
+                y = radius * math.sin(angle_rad)
+
+                painter.setPen(QColor(230, 230, 230))
+                painter.drawText(
+                    QRectF(x - 16, y - 12, 32, 24),
+                    Qt.AlignmentFlag.AlignCenter,
+                    str(val)
+                )
+            start_angle = -225        # degrees
+            sweep_angle = 270         # degrees
+
+            step = 10
+            steps = int((self.max_val - self.min_val) / step)
+
+            painter.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+
+        for i in range(steps + 1):
+            val = self.min_val + i * step
+            pct = i / steps
+            angle = start_angle + pct * sweep_angle
+
+            painter.save()
+            painter.rotate(angle)
+
+            # Major tick every 10
+            is_redline = val >= 100
+            tick_color = QColor(255, 60, 60) if is_redline else QColor(180, 180, 180)
+
+            painter.setPen(QPen(tick_color, 3))
+            painter.drawLine(0, -82, 0, -95)
+            painter.restore()
+
+            # --- Label positioning ---
+            angle_rad = math.radians(angle)
+            radius = 68
+            x = radius * math.cos(angle_rad)
+            y = radius * math.sin(angle_rad)
+
+            painter.setPen(QColor(220, 220, 220))
+            painter.drawText(
+                QRectF(x - 18, y - 12, 36, 24),
+                Qt.AlignmentFlag.AlignCenter,
+                str(val)
+            )
     def draw_needle(self, painter):
         painter.save()
 
@@ -136,18 +213,19 @@ class AnalogueGauge(QWidget):
         painter.drawEllipse(-8, -8, 16, 16)
 
     def draw_digital_readout(self, painter):
-        # Digital Value
-        painter.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        painter.setPen(self.text_color)
-        
-        val_str = f"{self.current_value:.1f}" if isinstance(self.current_value, float) else str(self.current_value)
-        painter.drawText(QRectF(-50, 30, 100, 30), Qt.AlignmentFlag.AlignCenter, val_str)
+        # SPEED VALUE
+        painter.setPen(QColor(230, 255, 255))
+        painter.setFont(QFont("Orbitron", 22, QFont.Weight.Bold))
+        painter.drawText(QRectF(-60, -10, 120, 40),
+                        Qt.AlignmentFlag.AlignCenter,
+                        f"{self.current_value:.1f}")
 
-        # Title / Units
-        painter.setFont(QFont("Arial", 7))
-        painter.setPen(QColor(150, 150, 150))
-        label = f"{self.title} {self.units}"
-        painter.drawText(QRectF(-50, 55, 100, 20), Qt.AlignmentFlag.AlignCenter, label)
+        # UNITS
+        painter.setFont(QFont("Orbitron", 10))
+        painter.setPen(QColor(120, 200, 200))
+        painter.drawText(QRectF(-60, 30, 120, 20),
+                        Qt.AlignmentFlag.AlignCenter,
+                        self.units)
 
     def draw_glass_reflection(self, painter):
         # Adds a subtle "shine" to the top half to simulate glass

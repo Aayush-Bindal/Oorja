@@ -5,7 +5,7 @@ import math
 import random
 
 # --- 1. BACKEND SELECTION ---
-TEST_MODE = True
+TEST_MODE = True 
 
 if TEST_MODE:
     print("RUNNING IN SIMULATION MODE (simulation.py)")
@@ -37,11 +37,10 @@ except ImportError:
     ImageTk = None
 
 # --- 3. WINDOWS TCL/TK FIX ---
-# Adjust this path if necessary for your specific Python installation
-# base_path = r"C:\Users\abhin\AppData\Local\Programs\Python\Python313\tcl"
-# if os.path.exists(base_path):
-#     os.environ['TCL_LIBRARY'] = os.path.join(base_path, 'tcl8.6')
-#     os.environ['TK_LIBRARY'] = os.path.join(base_path, 'tk8.6')
+base_path = r"C:\Users\abhin\AppData\Local\Programs\Python\Python313\tcl"
+if os.path.exists(base_path):
+    os.environ['TCL_LIBRARY'] = os.path.join(base_path, 'tcl8.6')
+    os.environ['TK_LIBRARY'] = os.path.join(base_path, 'tk8.6')
 
 # --- 4. COLOR PALETTE ---
 COL_BG       = "#111111"
@@ -201,11 +200,11 @@ class StatBar(tk.Frame):
         self.bar_width = 250  
         self.top_frame = tk.Frame(self, bg=COL_BG)
         self.top_frame.pack(side="top", fill="x")
-        self.lbl = tk.Label(self.top_frame, text=f"{label}", fg=COL_WHITE, bg=COL_BG, font=("Consolas", 10, "bold"))
+        self.lbl = tk.Label(self.top_frame, text=f"{label}", fg=COL_WHITE, bg=COL_BG, font=("Consolas", 10))
         self.lbl.pack(side="left")
         self.val_lbl = tk.Label(self.top_frame, text="0.0", fg=color, bg=COL_BG, font=("Consolas", 10, "bold"))
         self.val_lbl.pack(side="right")
-        self.canvas = tk.Canvas(self, width=self.bar_width, height=15, bg="#000000", highlightthickness=1, highlightbackground=COL_OFFWHITE)
+        self.canvas = tk.Canvas(self, width=self.bar_width, height=15, bg="#000000", highlightthickness=1, highlightbackground="#333")
         self.canvas.pack(side="top", pady=(2, 0))
         self.canvas.create_rectangle(0, 0, self.bar_width, 15, fill="#1a1a1a", outline="")
         self.bar = self.canvas.create_rectangle(0, 0, 0, 15, fill=color, outline="")
@@ -323,11 +322,10 @@ class RacingDash:
         self.title_lbl = tk.Label(self.title_container, text=title_txt, fg=COL_OFFWHITE, bg=COL_BG, font=("Impact", 36))
         self.title_lbl.place(x=-2, y=-2)
 
-        # 2. SYSTEM LOADS (Updated Colors: Off-White Text & Boundary)
-        # CHANGED: fg=COL_OFFWHITE (was COL_CYAN) to match the boundary
-        self.power_frame = tk.LabelFrame(root, text="SYSTEM LOADS", fg=COL_OFFWHITE, bg=COL_BG, font=("Arial", 11, "bold"), 
+        # 2. SYSTEM LOADS (Updated Color)
+        self.power_frame = tk.LabelFrame(root, text="SYSTEM LOADS", fg=COL_CYAN, bg=COL_BG, font=("Arial", 11, "bold"), 
                                          padx=10, pady=5, 
-                                         highlightthickness=1, highlightbackground=COL_OFFWHITE) 
+                                         highlightthickness=1, highlightbackground=COL_CYAN) 
         self.power_frame.pack(side="top", fill="x", padx=20, pady=5)
         
         self.bar_v = StatBar(self.power_frame, "Voltage", 60, 90, "V", COL_WHITE)

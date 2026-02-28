@@ -1,0 +1,235 @@
+import os
+import sys
+import time
+import tkinter as tk
+import math
+import random
+
+# --- FIX: HARDCODE TCL/TK PATHS ---
+base_path = r"C:\Users\abhin\AppData\Local\Programs\Python\Python313\tcl"
+if os.path.exists(base_path):
+    os.environ['TCL_LIBRARY'] = os.path.join(base_path, 'tcl8.6')
+    os.environ['TK_LIBRARY'] = os.path.join(base_path, 'tk8.6')
+
+# --- RACING PALETTE ---
+COL_BG      = "#000000"  
+COL_OFF     = "#222222"  # Darkened unlit segments so they look "off"
+COL_YELLOW  = "#f1c40f"  
+COL_ORANGE  = "#e67e22"  
+COL_RED     = "#e74c3c"  
+COL_CYAN    = "#55C3D0"  
+COL_WHITE   = "#FFFFFF"  # Used for the boundaries
+
+class RacingGauge(tk.Canvas):
+    def __init__(self, parent, width=300, height=300, min_val=0, max_val=100, 
+                 major_step=10, minor_step=1, title="SPEED", unit="KM/H"):
+        super().__init__(parent, width=width, height=height, bg=COL_BG, highlightthickness=0)
+        self.width = width
+        self.height = height
+        self.center_x = width // 2
+        self.center_y = height // 2
+        self.radius = min(width, height) // 2 - 25
+        
+        self.min_val = min_val
+        self.max_val = max_val
+        self.major_step = major_step
+        self.minor_step = minor_step
+        self.title = title
+        self.unit = unit
+        
+        self.draw_static_face()
+        self.draw_needle(min_val)
+
+    def draw_static_face(self):
+        # --- WHITE BOUNDARY RING ---
+        self.create_oval(self.center_x - self.radius, self.center_y - self.radius,
+                         self.center_x + self.radius, self.center_y + self.radius,
+                         outline=COL_WHITE, width=5) 
+        
+        total_angle = 270
+        start_angle_deg = 135
+        
+        steps = int((self.max_val - self.min_val) / self.minor_step)
+        for i in range(steps + 1):
+            val = self.min_val + (i * self.minor_step)
+            is_major = (val % self.major_step < 0.0001) or (abs(val % self.major_step - self.major_step) < 0.0001)
+            
+            percent = (val - self.min_val) / (self.max_val - self.min_val)
+            angle_deg = start_angle_deg + (percent * total_angle)
+            angle_rad = math.radians(angle_deg)
+            
+            if is_major:
+                tick_len = 20
+                width = 4 
+                color = COL_CYAN
+                
+                text_rad = self.radius - 45
+                x_text = self.center_x + text_rad * math.cos(angle_rad)
+                y_text = self.center_y + text_rad * math.sin(angle_rad)
+                self.create_text(x_text, y_text, text=str(int(val)), fill=COL_WHITE, 
+                                 font=("Segoe UI", 12, "bold"))
+            else:
+                tick_len = 10
+                width = 1
+                color = "#444444" 
+            
+            if val >= self.max_val * 0.8:
+                color = COL_RED
+            
+            x_out = self.center_x + (self.radius - 5) * math.cos(angle_rad)
+            y_out = self.center_y + (self.radius - 5) * math.sin(angle_rad)
+            x_in = self.center_x + (self.radius - 5 - tick_len) * math.cos(angle_rad)
+            y_in = self.center_y + (self.radius - 5 - tick_len) * math.sin(angle_rad)
+            
+            self.create_line(x_out, y_out, x_in, y_in, fill=color, width=width)
+
+        self.create_text(self.center_x, self.center_y - self.radius * 0.4, 
+                         text=self.title, fill=COL_CYAN, font=("Segoe UI", 14, "bold"))
+        self.create_text(self.center_x, self.center_y + self.radius * 0.5, 
+                         text=self.unit, fill="#aaaaaa", font=("Segoe UI", 10))
+
+    def draw_needle(self, value):
+        self.delete("needle")
+        self.delete("readout")
+        
+        value = max(self.min_val, min(value, self.max_val))
+        span = 270
+        percent = (value - self.min_val) / (self.max_val - self.min_val)
+        angle_deg = 135 + (percent * span)
+        angle_rad = math.radians(angle_deg)
+        
+        needle_col = COL_CYAN
+        if value > self.max_val * 0.8:
+            needle_col = COL_RED
+        
+        tip_len = self.radius - 10
+        x_tip = self.center_x + tip_len * math.cos(angle_rad)
+        y_tip = self.center_y + tip_len * math.sin(angle_rad)
+        
+        base_w = 8
+        x_base1 = self.center_x + base_w * math.cos(angle_rad + math.pi/2)
+        y_base1 = self.center_y + base_w * math.sin(angle_rad + math.pi/2)
+        x_base2 = self.center_x + base_w * math.cos(angle_rad - math.pi/2)
+        y_base2 = self.center_y + base_w * math.sin(angle_rad - math.pi/2)
+        
+        self.create_polygon(x_tip, y_tip, x_base1, y_base1, x_base2, y_base2, 
+                            fill=needle_col, outline=needle_col, tags="needle")
+        
+        self.create_oval(self.center_x - 12, self.center_y - 12,
+                         self.center_x + 12, self.center_y + 12,
+                         fill=COL_BG, outline=needle_col, width=3, tags="needle")
+
+        display_val = f"{value:.1f}" if self.max_val <= 10 else f"{int(value)}"
+        self.create_text(self.center_x, self.center_y + 40, 
+                         text=display_val, 
+                         fill=needle_col, font=("Consolas", 26, "bold"), tags="readout")
+
+class SegmentBar(tk.Canvas):
+    def __init__(self, parent, width=150, height=300, min_val=40, max_val=120, title="TEMP"):
+        super().__init__(parent, width=width, height=height, bg=COL_BG, highlightthickness=0)
+        self.min_val = min_val
+        self.max_val = max_val
+        self.title = title
+        self.bar_x = width // 2 - 25
+        self.bar_width = 50
+        self.bar_bottom = height - 50
+        self.bar_top = 60
+        self.total_height = self.bar_bottom - self.bar_top
+        self.num_segments = 20
+        self.seg_height = (self.total_height / self.num_segments) - 2 
+        
+        self.draw_static()
+        self.update_bar(min_val)
+
+    def draw_static(self):
+        # --- WHITE BOUNDARY BOX ---
+        self.create_rectangle(self.bar_x - 5, self.bar_top - 5, 
+                              self.bar_x + self.bar_width + 5, self.bar_bottom + 5,
+                              outline=COL_WHITE, width=3)
+
+        self.create_text(self.winfo_reqwidth()//2, 30, text=self.title, 
+                         fill=COL_ORANGE, font=("Segoe UI", 16, "bold"))
+        
+        for i in range(self.num_segments):
+            y1 = self.bar_bottom - ((i + 1) * (self.seg_height + 2))
+            y2 = y1 + self.seg_height
+            self.create_rectangle(self.bar_x, y1, self.bar_x + self.bar_width, y2,
+                                  fill=COL_OFF, outline="", tags="static_segs")
+
+    def update_bar(self, value):
+        self.delete("active_segs")
+        self.delete("text")
+        value = max(self.min_val, min(value, self.max_val))
+        percent = (value - self.min_val) / (self.max_val - self.min_val)
+        active_segments = int(percent * self.num_segments)
+
+        for i in range(active_segments):
+            y1 = self.bar_bottom - ((i + 1) * (self.seg_height + 2))
+            y2 = y1 + self.seg_height
+            if i < self.num_segments * 0.5: color = COL_YELLOW
+            elif i < self.num_segments * 0.8: color = COL_ORANGE
+            else: color = COL_RED
+
+            self.create_rectangle(self.bar_x, y1, self.bar_x + self.bar_width, y2,
+                                  fill=color, outline="", tags="active_segs")
+
+        self.create_text(self.bar_x + self.bar_width // 2, self.bar_bottom + 30,
+                         text=f"{int(value)}°C", fill=COL_WHITE,
+                         font=("Consolas", 14, "bold"), tags="text")
+
+class RacingDash:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("PRO-RACE TELEMETRY")
+        self.root.configure(bg=COL_BG)
+
+        self.main_frame = tk.Frame(root, bg=COL_BG)
+        self.main_frame.pack(padx=20, pady=20)
+
+        # 1. RPM Gauge (Left - Smaller)
+        self.rpm_gauge = RacingGauge(
+            self.main_frame, width=280, height=280, 
+            min_val=0, max_val=5, major_step=1, minor_step=0.1,
+            title="RPM", unit="x1000"
+        )
+        self.rpm_gauge.grid(row=0, column=0, padx=10, sticky="s")
+
+        # 2. Speedometer (Center - 0 to 120)
+        self.speed_gauge = RacingGauge(
+            self.main_frame, width=400, height=400, 
+            min_val=0, max_val=120, major_step=20, minor_step=2,
+            title="SPEED", unit="KM/H"
+        )
+        self.speed_gauge.grid(row=0, column=1, padx=10)
+
+        # 3. Temp Bar (Right)
+        self.temp_bar = SegmentBar(
+            self.main_frame, width=120, height=350, 
+            min_val=40, max_val=130, title="TEMP"
+        )
+        self.temp_bar.grid(row=0, column=2, padx=10)
+
+        self.curr_speed = 0
+        self.curr_rpm = 0
+        self.curr_temp = 70
+        self.update_telemetry()
+
+    def update_telemetry(self):
+            seconds = time.time()
+            target_speed = (math.sin(seconds * 0.5) * 60) + 60
+            self.curr_speed += (target_speed - self.curr_speed) * 0.1
+            
+            target_rpm = (self.curr_speed / 120) * 4.5 + random.uniform(-0.1, 0.1)
+            self.curr_rpm += (target_rpm - self.curr_rpm) * 0.2
+            self.curr_temp += (95 - self.curr_temp) * 0.01 + random.uniform(-0.1, 0.1)
+
+            self.speed_gauge.draw_needle(self.curr_speed)
+            self.rpm_gauge.draw_needle(self.curr_rpm)
+            self.temp_bar.update_bar(self.curr_temp)
+
+            self.root.after(30, self.update_telemetry)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = RacingDash(root)
+    root.mainloop()
